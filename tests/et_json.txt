@@ -1,0 +1,161 @@
+[
+  {
+    "header":{
+      "offset":0,
+      "tag":8,
+      "tag.str":"Compressed Data",
+      "partial":false,
+      "indeterminate":false
+    },
+    "algorithm":1,
+    "algorithm.str":"ZIP",
+    "contents":[
+      {
+        "header":{
+          "offset":0,
+          "tag":4,
+          "tag.str":"One-Pass Signature",
+          "partial":false,
+          "indeterminate":false
+        },
+        "version":3,
+        "type":0,
+        "type.str":"Signature of a binary document",
+        "hash algorithm":8,
+        "hash algorithm.str":"SHA256",
+        "public key algorithm":22,
+        "public key algorithm.str":"EdDSA",
+        "signer":"feee14c57b1a12d9",
+        "nested":false
+      },
+      {
+        "header":{
+          "tag":4,
+          "tag.str":"One-Pass Signature",
+          "partial":false,
+          "indeterminate":false
+        },
+        "version":3,
+        "type":0,
+        "type.str":"Signature of a binary document",
+        "hash algorithm":8,
+        "hash algorithm.str":"SHA256",
+        "public key algorithm":1,
+        "public key algorithm.str":"RSA (Encrypt or Sign)",
+        "signer":"5fc1286cf91da4d0",
+        "nested":true
+      },
+      {
+        "header":{
+          "tag":11,
+          "tag.str":"Literal Data",
+          "partial":false,
+          "indeterminate":false
+        },
+        "format":"b",
+        "filename":"message.txt",
+        "datalen":26
+      },
+      {
+        "header":{
+          "tag":2,
+          "tag.str":"Signature",
+          "partial":false,
+          "indeterminate":false
+        },
+        "version":4,
+        "type":0,
+        "type.str":"Signature of a binary document",
+        "algorithm":1,
+        "algorithm.str":"RSA (Encrypt or Sign)",
+        "hash algorithm":8,
+        "hash algorithm.str":"SHA256",
+        "subpackets":[
+          {
+            "type":33,
+            "type.str":"issuer fingerprint",
+            "length":21,
+            "hashed":true,
+            "critical":false,
+            "fingerprint":"b2617b172b2ceae2a1ed72435fc1286cf91da4d0"
+          },
+          {
+            "type":2,
+            "type.str":"signature creation time",
+            "length":4,
+            "hashed":true,
+            "critical":false
+          },
+          {
+            "type":3,
+            "type.str":"signature expiration time",
+            "length":4,
+            "hashed":true,
+            "critical":false,
+            "expiration time":31536000
+          },
+          {
+            "type":16,
+            "type.str":"issuer key ID",
+            "length":8,
+            "hashed":false,
+            "critical":false,
+            "issuer keyid":"5fc1286cf91da4d0"
+          }
+        ],
+        "material":{
+        }
+      },
+      {
+        "header":{
+          "tag":2,
+          "tag.str":"Signature",
+          "partial":false,
+          "indeterminate":false
+        },
+        "version":4,
+        "type":0,
+        "type.str":"Signature of a binary document",
+        "algorithm":22,
+        "algorithm.str":"EdDSA",
+        "hash algorithm":8,
+        "hash algorithm.str":"SHA256",
+        "subpackets":[
+          {
+            "type":33,
+            "type.str":"issuer fingerprint",
+            "length":21,
+            "hashed":true,
+            "critical":false,
+            "fingerprint":"f1768c67ec5a9ead3061c2befeee14c57b1a12d9"
+          },
+          {
+            "type":2,
+            "type.str":"signature creation time",
+            "length":4,
+            "hashed":true,
+            "critical":false
+          },
+          {
+            "type":3,
+            "type.str":"signature expiration time",
+            "length":4,
+            "hashed":true,
+            "critical":false,
+            "expiration time":31536000
+          },
+          {
+            "type":16,
+            "type.str":"issuer key ID",
+            "length":8,
+            "hashed":false,
+            "critical":false,
+            "issuer keyid":"feee14c57b1a12d9"
+          }
+        ],
+        "material":{
+        }
+      }
+    ]
+  }
+]
