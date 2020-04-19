@@ -2,7 +2,7 @@
 
 '''A Binding wrapper
 '''
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # Copyright (c) 2020 Janky <box@janky.tech>
 # All right reserved.
@@ -321,7 +321,7 @@ class RopBind(object):
     @property
     def ALG_SYMM_SM4(self): return ROPD.RNP_ALGNAME_SM4
     @property
-    def ALG_SYMM_DEFAULT(self): return ALG_SYMM_AES_256
+    def ALG_SYMM_DEFAULT(self): return ROPD.ALG_SYMM_AES_256
     @property
     def ALG_ASYM_RSA(self): return ROPD.RNP_ALGNAME_RSA
     @property

@@ -1,6 +1,6 @@
 '''Ops proxies
 '''
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # Copyright (c) 2020 Janky <box@janky.tech>
 # All right reserved.
@@ -259,13 +259,15 @@ class RopOpEncrypt(object):
         _call_rop_func(self.__lib.rnp_op_encrypt_set_aead_bits, 0, self.__opid, bits)
 
     def set_compression(self, compression, level):
-        _call_rop_func(self.__lib.rnp_op_encrypt_set_compression, 0, self.__opid, compression, level)
+        _call_rop_func(self.__lib.rnp_op_encrypt_set_compression, 0, self.__opid, \
+            compression, level)
 
     def set_file_name(self, filename):
         _call_rop_func(self.__lib.rnp_op_encrypt_set_file_name, 0, self.__opid, filename)
 
     def set_file_mtime(self, mtime):
-        _call_rop_func(self.__lib.rnp_op_encrypt_set_file_mtime, 0, self.__opid, _datetime2ts(mtime))
+        _call_rop_func(self.__lib.rnp_op_encrypt_set_file_mtime, 0, self.__opid, \
+            _datetime2ts(mtime))
 
     def execute(self):
         _call_rop_func(self.__lib.rnp_op_encrypt_execute, 0, self.__opid)

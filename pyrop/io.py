@@ -1,6 +1,6 @@
 '''I/O proxies
 '''
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # Copyright (c) 2020 Janky <box@janky.tech>
 # All right reserved.
@@ -111,6 +111,9 @@ class RopOutput(object):
         if ret != ROPE.RNP_SUCCESS:
             raise RopError(ret)
         return _get_rop_data(self.__lib, ret, outs[-2], outs[-1], free_buf=do_copy)
+
+    def memory_get_str(self, do_copy):
+        return self.memory_get_buf(do_copy)
 
     def write(self, data, size):
         return _call_rop_func(self.__lib.rnp_output_write, 1, self.__oid, data, size)

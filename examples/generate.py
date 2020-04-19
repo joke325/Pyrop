@@ -71,7 +71,7 @@ def print_key(rop, ses, uid, secret):
     try:
         key.export(keydata, public=not secret, secret=secret, subkey=True, armored=True)
         # get key's contents from the output structure
-        buf = keydata.memory_get_buf(False)
+        buf = keydata.memory_get_str(False)
         print(buf)
     finally:
         rop.drop(object_=keydata)

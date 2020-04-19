@@ -45,7 +45,7 @@ def decrypt(rop, usekeys):
             output = rop.create_output(max_alloc=0)
             ses.decrypt(input_, output)
             # get the decrypted message from the output structure
-            buf = output.memory_get_buf(False)
+            buf = output.memory_get_str(False)
         except RopError:
             print("Public-key decryption failed")
             raise

@@ -67,7 +67,7 @@ def verify_(rop):
             raise
 
         # get the verified message from the output structure
-        buf = output.memory_get_buf(False)
+        buf = output.memory_get_str(False)
         print("Verified message: {}".format(buf))
 
     finally:

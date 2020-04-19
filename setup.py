@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name='Pyrop',
-    version='0.1.0',
+    version='0.1.1',
     author='Janky',
     author_email='box@janky.tech',
     description='Python bidings for RNP OpenPGP library',
