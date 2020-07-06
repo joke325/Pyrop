@@ -1,6 +1,6 @@
 '''FFI proxy
 '''
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 # Copyright (c) 2020 Janky <box@janky.tech>
 # All right reserved.
@@ -42,13 +42,18 @@ class RopIdIterator(object):
 
     def __init__(self, own, iiid):
         self.__own = weakref(own)
-        self.__lib = own._lib
+        self.__lib = own.lib
+        if iiid is None or iiid.value is None:
+            raise RopError(ROP_ERROR_NULL_HANDLE)
         self.__iiid = iiid
 
     def _close(self):
         ret = self.__lib.rnp_identifier_iterator_destroy(self.__iiid)
         self.__iiid = None
         return ret
+
+    @property
+    def handle(self): return self.__iiid
 
     def next(self):
         inext = _call_rop_func(self.__lib.rnp_identifier_iterator_next, 1, self.__iiid)
@@ -61,7 +66,9 @@ class RopSession(object):
 
     def __init__(self, own, sid):
         self.__own = weakref(own)
-        self.__lib = own._lib
+        self.__lib = own.lib
+        if sid is None or sid.value is None:
+            raise RopError(ROP_ERROR_NULL_HANDLE)
         self.__sid = sid
         self.__pass_provider = None
         self.__key_provider = None
@@ -77,6 +84,8 @@ class RopSession(object):
         self.__sid = None
 
     @property
+    def handle(self): return self.__sid
+    @property
     def bind(self): return self.__own()
 
     #API
@@ -91,8 +100,8 @@ class RopSession(object):
     def op_sign_create(self, input_, output, cleartext=False, detached=False, tag=0):
         ret = self.__own().ROP_ERROR_BAD_PARAMETERS
         outs = []
-        inp = (input_.in_put if input_ is not None else None)
-        outp = (output.out_put if output is not None else None)
+        inp = (input_.handle if input_ is not None else None)
+        outp = (output.handle if output is not None else None)
         if cleartext:
             ret = self.__lib.rnp_op_sign_cleartext_create(outs, self.__sid, inp, outp)
         elif detached:
@@ -106,29 +115,37 @@ class RopSession(object):
         if primary is None:
             ret = self.__lib.rnp_op_generate_create(outs, self.__sid, key_alg)
         else:
-            ret = self.__lib.rnp_op_generate_subkey_create(outs, self.__sid, primary.key, key_alg)
+            ret = self.__lib.rnp_op_generate_subkey_create(outs, self.__sid, primary.handle, key_alg)
         return _new_rop_obj(self.__own(), ret, outs[-1], RopOpGenerate, tag)
+
+    def op_generate_create_subkey(self, key_alg, primary):
+        self.op_generate_create(key_alg, primary)
 
     def op_encrypt_create(self, input_, output, tag=0):
         outs = []
-        inp = (input_.in_put if input_ is not None else None)
-        outp = (output.out_put if output is not None else None)
+        inp = (input_.handle if input_ is not None else None)
+        outp = (output.handle if output is not None else None)
         ret = self.__lib.rnp_op_encrypt_create(outs, self.__sid, inp, outp)
         return _new_rop_obj(self.__own(), ret, outs[-1], RopOpEncrypt, tag)
 
     def op_verify_create(self, input_, output=None, signature=None, tag=0):
         outs = []
-        inp = (input_.in_put if input_ is not None else None)
+        inp = (input_.handle if input_ is not None else None)
         if signature is None:
-            outp = (output.out_put if output is not None else None)
+            outp = (output.handle if output is not None else None)
             ret = self.__lib.rnp_op_verify_create(outs, self.__sid, inp, outp)
         else:
-            sig = (signature.in_put if signature is not None else None)
+            sig = (signature.handle if signature is not None else None)
             ret = self.__lib.rnp_op_verify_detached_create(outs, self.__sid, inp, sig)
         return _new_rop_obj(self.__own(), ret, outs[-1], RopOpVerify, tag)
 
+    def request_password(self, key, context):
+        hkey = (key.handle if key is not None else None)
+        pswd = _call_rop_func(self.__lib.rnp_request_password, 1, self.__sid, hkey, context)
+        return _get_rop_string(self.__lib, ROPE.RNP_SUCCESS, pswd, clear_buf=True)
+
     def load_keys(self, format_, input_, public=False, secret=False):
-        inp = (input_.in_put if input_ is not None else None)
+        inp = (input_.handle if input_ is not None else None)
         flags = (ROPD.RNP_LOAD_SAVE_PUBLIC_KEYS if public else 0)
         flags |= (ROPD.RNP_LOAD_SAVE_SECRET_KEYS if secret else 0)
         _call_rop_func(self.__lib.rnp_load_keys, 0, self.__sid, format_, inp, flags)
@@ -138,45 +155,46 @@ class RopSession(object):
         flags |= (ROPD.RNP_KEY_UNLOAD_SECRET if secret else 0)
         _call_rop_func(self.__lib.rnp_unload_keys, 0, self.__sid, flags)
 
-    def _put_key(self, rop_key, tag):
+    def __put_key(self, rop_key, tag):
         return _new_rop_obj(self.__own(), ROPE.RNP_SUCCESS, rop_key, RopKey, tag)
 
     def locate_key(self, identifier_type, identifier, tag=0):
         key = _call_rop_func(self.__lib.rnp_locate_key, 1, self.__sid, identifier_type, identifier)
-        return self._put_key(key, tag)
+        return self.__put_key(key, tag)
 
     def generate_key_rsa(self, bits, subbits, userid, password, tag=0):
         key = _call_rop_func(self.__lib.rnp_generate_key_rsa, 1, self.__sid, bits, subbits, \
             userid, password)
-        return self._put_key(key, tag)
+        return self.__put_key(key, tag)
 
     def generate_key_dsa_eg(self, bits, subbits, userid, password, tag=0):
         key = _call_rop_func(self.__lib.rnp_generate_key_dsa_eg, 1, self.__sid, bits, subbits, \
             userid, password)
-        return self._put_key(key, tag)
+        return self.__put_key(key, tag)
 
     def generate_key_ec(self, curve, userid, password, tag=0):
         key = _call_rop_func(self.__lib.rnp_generate_key_ec, 1, self.__sid, curve, userid, password)
-        return self._put_key(key, tag)
+        return self.__put_key(key, tag)
 
     def generate_key_25519(self, userid, password, tag=0):
         key = _call_rop_func(self.__lib.rnp_generate_key_25519, 1, self.__sid, userid, password)
-        return self._put_key(key, tag)
+        return self.__put_key(key, tag)
 
     def generate_key_sm2(self, userid, password, tag=0):
         key = _call_rop_func(self.__lib.rnp_generate_key_sm2, 1, self.__sid, userid, password)
-        return self._put_key(key, tag)
+        return self.__put_key(key, tag)
 
     def generate_key_ex(self, key_alg, sub_alg, key_bits, sub_bits, key_curve, sub_curve, \
         userid, password, tag=0):
         key = _call_rop_func(self.__lib.rnp_generate_key_ex, 1, self.__sid, key_alg, sub_alg, \
             key_bits, sub_bits, key_curve, sub_curve, userid, password)
-        return self._put_key(key, tag)
+        return self.__put_key(key, tag)
 
-    def import_keys(self, input_, public=False, secret=False):
-        inp = (input_.in_put if input_ is not None else None)
+    def import_keys(self, input_, public=False, secret=False, perm=False):
+        inp = (input_.handle if input_ is not None else None)
         flags = (ROPD.RNP_LOAD_SAVE_PUBLIC_KEYS if public else 0)
-        flags += (ROPD.RNP_LOAD_SAVE_SECRET_KEYS if secret else 0)
+        flags |= (ROPD.RNP_LOAD_SAVE_SECRET_KEYS if secret else 0)
+        flags |= (ROPD.RNP_LOAD_SAVE_PERMISSIVE if perm else 0)
         keys = _call_rop_func(self.__lib.rnp_import_keys, 1, self.__sid, inp, flags)
         return _get_rop_string(self.__lib, ROPE.RNP_SUCCESS, keys)
 
@@ -201,8 +219,13 @@ class RopSession(object):
         _call_rop_func(self.__lib.rnp_ffi_set_key_provider, 0, self.__sid, \
             self.__key_provider, getkeycb_ctx)
 
+    def import_signatures(self, input_):
+        inp = (input_.handle if input_ is not None else None)
+        sigs = _call_rop_func(self.__lib.rnp_import_signatures, 1, self.__sid, inp, 0)
+        return _get_rop_string(self.__lib, ROPE.RNP_SUCCESS, sigs)
+
     def save_keys(self, format_, output, public=False, secret=False):
-        outp = (output.out_put if output is not None else None)
+        outp = (output.handle if output is not None else None)
         flags = (ROPD.RNP_LOAD_SAVE_PUBLIC_KEYS if public else 0)
         flags |= (ROPD.RNP_LOAD_SAVE_SECRET_KEYS if secret else 0)
         _call_rop_func(self.__lib.rnp_save_keys, 0, self.__sid, format_, outp, flags)
@@ -211,8 +234,8 @@ class RopSession(object):
         return _get_str_prop(self.__lib, self.__lib.rnp_generate_key_json, self.__sid, json)
 
     def decrypt(self, input_, output):
-        inp = (input_.in_put if input_ is not None else None)
-        outp = (output.out_put if output is not None else None)
+        inp = (input_.handle if input_ is not None else None)
+        outp = (output.handle if output is not None else None)
         _call_rop_func(self.__lib.rnp_decrypt, 0, self.__sid, inp, outp)
 
     # Callback proxies
@@ -223,15 +246,20 @@ class RopSession(object):
         def cb_wrap(ffi, app_ctx, key, pgp_context, buf_len):
             atag = self.__own().tagging()
             # create new Session and Key handlers
-            rop_ses = _new_rop_obj(self.__own(), ROPE.RNP_SUCCESS, c_void_p(ffi), RopSession, atag)
-            rop_key = _new_rop_obj(self.__own(), ROPE.RNP_SUCCESS, c_void_p(key), RopKey, atag)
-            ret, ret_buf = function(rop_ses, app_ctx, rop_key, pgp_context, buf_len)
-            if rop_ses is not None:
-                rop_ses._detach()
-            if rop_key is not None:
-                rop_key._detach()
-            self.__own().drop(atag)
-            return ret, ret_buf
+            rop_ses = None
+            rop_key = None
+            try:
+                rop_ses = _new_rop_obj(self.__own(), ROPE.RNP_SUCCESS, c_void_p(ffi), RopSession, atag)
+                rop_key = _new_rop_obj(self.__own(), ROPE.RNP_SUCCESS, c_void_p(key), RopKey, atag)
+                return function(rop_ses, app_ctx, rop_key, pgp_context, buf_len)
+            except RopError: pass
+            finally:
+                if rop_ses is not None:
+                    rop_ses._detach()
+                if rop_key is not None:
+                    rop_key._detach()
+                self.__own().drop(atag)
+            return False, None
         return cb_wrap
 
     def __reshape_key_cb(self, function):
@@ -240,10 +268,14 @@ class RopSession(object):
         def cb_wrap(ffi, app_ctx, identifier_type, identifier, secret):
             atag = self.__own().tagging()
             # create a new Session handler
-            rop_ses = _new_rop_obj(self.__own(), ROPE.RNP_SUCCESS, c_void_p(ffi), RopSession, atag)
-            function(rop_ses, app_ctx, identifier_type, identifier, secret)
-            if rop_ses is not None:
-                rop_ses._detach()
-            self.__own().drop(atag)
+            rop_ses = None
+            try:
+                rop_ses = _new_rop_obj(self.__own(), ROPE.RNP_SUCCESS, c_void_p(ffi), RopSession, atag)
+                function(rop_ses, app_ctx, identifier_type, identifier, secret)
+            except RopError: pass
+            finally:
+                if rop_ses is not None:
+                    rop_ses._detach()
+                self.__own().drop(atag)
             return 0
         return cb_wrap

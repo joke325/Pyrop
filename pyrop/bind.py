@@ -2,7 +2,7 @@
 
 '''A Binding wrapper
 '''
-__version__ = "0.1.1"
+__version__ = "0.3.0"
 
 # Copyright (c) 2020 Janky <box@janky.tech>
 # All right reserved.
@@ -35,10 +35,11 @@ from .util import _call_rop_func, _get_rop_string, _new_rop_obj, _get_str_prop
 from .error import RopError
 from .session import RopSession
 from .io import RopInput, RopOutput
-
+import os
+import os.path
 
 class RopBind(object):
-    '''Root object of bindind for the RNP OpenPGP library
+    '''Root object of binding for the RNP OpenPGP library
     '''
 
     def __init__(self, check_lib_ver=True):
@@ -46,18 +47,32 @@ class RopBind(object):
         self.__lib = RopLib()
         self.__tags = [self.__cnt]
         self.__t2objs = dict() #tag->set
-        if check_lib_ver and not (self.__lib.rnp_version() >= self.__lib.rnp_version_for(0, 9, 0)):
+        if check_lib_ver and not (self.__lib.rnp_version() >= self.__lib.rnp_version_for(0, 9, 0)) and not (self.__lib.rnp_version_commit_timestamp() >= self.ropid):
             raise RopError(self.ROP_ERROR_LIBVERSION)
+        self.__altHome = None
+
+    def close(self):
+        self.clear()
 
     @property
-    def _lib(self):
+    def lib(self):
         return self.__lib
 
     # API
 
     @property
     def default_homedir(self):
-        return _get_str_prop(self.__lib, self.__lib.rnp_get_default_homedir)
+        try:
+            return _get_str_prop(self.__lib, self.__lib.rnp_get_default_homedir)
+        except RopError, ex:
+            if ex.err_code != ROPE.RNP_ERROR_NOT_SUPPORTED:
+                raise
+        if self.__altHome is None and os.getenv("HOMEDRIVE") is not None:
+            self.__altHome = os.path.join(os.getenv("HOMEDRIVE"), os.getenv("HOMEPATH"), ".rnp")
+        if self.__altHome is None:
+            raise RopError(ROPE.RNP_ERROR_NOT_SUPPORTED)
+        return self.__altHome
+
     @property
     def version_string(self):
         return self.__lib.rnp_version_string()
@@ -263,6 +278,9 @@ class RopBind(object):
     def __str__(self):
         return "tags = " + str(self.__tags) + "\nt2objs = " + str(self.__t2objs)
 
+    @property
+    def ropid(self): return 1592576775
+
     # Constants
 
     @property
@@ -347,6 +365,10 @@ class RopBind(object):
     def ROP_ERROR_LIBVERSION(self): return 0x80000001
     @property
     def ROP_ERROR_INTERNAL(self): return 0x80000002
+    @property
+    def ROP_ERROR_INTERNAL(self): return 0x80000002
+    @property
+    def ROP_ERROR_NULL_HANDLE(self): return 0x80000003
 
 
 if __name__ == '__main__':
@@ -363,4 +385,4 @@ if __name__ == '__main__':
     except RopError, ex:
         print(ex.message)
     finally:
-        rop.clear()
+        rop.close()

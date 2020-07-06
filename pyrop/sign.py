@@ -1,6 +1,6 @@
 '''Sign proxy
 '''
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 # Copyright (c) 2020 Janky <box@janky.tech>
 # All right reserved.
@@ -40,13 +40,18 @@ class RopSign(object):
 
     def __init__(self, own, sgid):
         self.__own = weakref(own)
-        self.__lib = own._lib
+        self.__lib = own.lib
+        if sgid is None or sgid.value is None:
+            raise RopError(ROP_ERROR_NULL_HANDLE)
         self.__sgid = sgid
 
     def _close(self):
         ret = self.__lib.rnp_signature_handle_destroy(self.__sgid)
         self.__sgid = None
         return ret
+
+    @property
+    def handle(self): return self.__sgid
 
     # API
 

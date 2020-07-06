@@ -10,7 +10,7 @@ Python 2.7
 
 ## Installation
 
-1. Download and install the [RNP OpenPGP library](https://github.com/rnpgp/rnp).
+1. Download, build and install shared version of the [RNP OpenPGP library](https://github.com/rnpgp/rnp).
 
 2. Install this wrapper:
 

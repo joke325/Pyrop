@@ -1,6 +1,6 @@
 '''Handy functions
 '''
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 # Copyright (c) 2020 Janky <box@janky.tech>
 # All right reserved.
@@ -34,7 +34,7 @@ from .rop.err import ROPE
 from .error import RopError
 
 
-def _get_rop_string(rop, ret, rop_strs, free_buf=True):
+def _get_rop_string(rop, ret, rop_strs, free_buf=True, clear_buf=False):
     '''F(rop: RopLib, ret: int, rop_strs: string/[string], free_buf: bool) -> string/[string]
     Transforms FFI strings onto strings
     Raises RopError
@@ -43,6 +43,8 @@ def _get_rop_string(rop, ret, rop_strs, free_buf=True):
     for str_ in (rop_strs if isinstance(rop_strs, list) else (rop_strs,)):
         sval = (pyrop_ref2str(str_) if str_.value is not None else None)
         svals.append(sval)
+        if clear_buf and (sval is not None):
+            rop.rnp_buffer_clear(str_, len(sval))
         if free_buf:
             rop.rnp_buffer_destroy(str_)
     if ret != ROPE.RNP_SUCCESS:

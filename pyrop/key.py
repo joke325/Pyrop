@@ -1,6 +1,6 @@
 '''Key proxies
 '''
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 # Copyright (c) 2020 Janky <box@janky.tech>
 # All right reserved.
@@ -31,7 +31,8 @@ from weakref import ref as weakref
 from datetime import timedelta
 from .rop.lib import ROPD
 from .rop.err import ROPE
-from .util import _get_rop_data, _call_rop_func, _new_rop_obj, _get_str_prop, _ts2datetime
+from .util import _get_rop_data, _call_rop_func, _new_rop_obj, _get_str_prop, _ts2datetime, \
+        _timedelta2sec
 
 
 class RopUidHandle(object):
@@ -40,13 +41,18 @@ class RopUidHandle(object):
 
     def __init__(self, own, huid):
         self.__own = weakref(own)
-        self.__lib = own._lib
+        self.__lib = own.lib
+        if huid is None or huid.value is None:
+            raise RopError(ROP_ERROR_NULL_HANDLE)
         self.__huid = huid
 
     def _close(self):
         ret = self.__lib.rnp_uid_handle_destroy(self.__huid)
         self.__huid = None
         return ret
+
+    @property
+    def handle(self): return self.__huid
 
     # API
 
@@ -68,7 +74,9 @@ class RopKey(object):
 
     def __init__(self, own, kid):
         self.__own = weakref(own)
-        self.__lib = own._lib
+        self.__lib = own.lib
+        if kid is None or kid.value is None:
+            raise RopError(ROP_ERROR_NULL_HANDLE)
         self.__kid = kid
 
     def _close(self):
@@ -81,10 +89,11 @@ class RopKey(object):
     def _detach(self):
         self.__kid = None
 
+    @property
+    def handle(self): return self.__kid
+
     # API
 
-    @property
-    def key(self): return self.__kid
     @property
     def keyid(self):
         return _get_str_prop(self.__lib, self.__lib.rnp_key_get_keyid, self.__kid)
@@ -109,6 +118,10 @@ class RopKey(object):
     @property
     def revocation_reason(self):
         return _get_str_prop(self.__lib, self.__lib.rnp_key_get_revocation_reason, self.__kid)
+
+    def set_expiration(self, expiry):
+        _call_rop_func(self.__lib.rnp_key_set_expiration, 0, self.__kid, _timedelta2sec(expiry));
+
     @property
     def is_revoked(self):
         return _call_rop_func(self.__lib.rnp_key_is_revoked, 1, self.__kid)
@@ -182,6 +195,18 @@ class RopKey(object):
     def allows_usage(self, usage):
         return _call_rop_func(self.__lib.rnp_key_allows_usage, 1, self.__kid, usage)
 
+    def allows_usages(self, usages):
+        for usage in usages:
+            if not self.allows_usage(usage):
+                return False
+        return True
+
+    def disallows_usages(self, usages):
+        for usage in usages:
+            if self.allows_usage(usage):
+                return False
+        return True
+
     def lock(self):
         _call_rop_func(self.__lib.rnp_key_lock, 0, self.__kid)
 
@@ -220,16 +245,25 @@ class RopKey(object):
         return _new_rop_obj(self.__own(), ROPE.RNP_SUCCESS, sign, RopSign, tag)
 
     def export(self, output, public=False, secret=False, subkey=False, armored=False):
-        outp = (output.out_put if output is not None else None)
+        outp = (output.handle if output is not None else None)
         flags = (ROPD.RNP_KEY_EXPORT_PUBLIC if public else 0)
         flags |= (ROPD.RNP_KEY_EXPORT_SECRET if secret else 0)
         flags |= (ROPD.RNP_KEY_EXPORT_SUBKEYS if subkey else 0)
         flags |= (ROPD.RNP_KEY_EXPORT_ARMORED if armored else 0)
         _call_rop_func(self.__lib.rnp_key_export, 0, self.__kid, outp, flags)
 
-    def remove(self, public=False, secret=False):
+    def remove(self, public=False, secret=False, subkeys=False):
         flags = (ROPD.RNP_KEY_REMOVE_PUBLIC if public else 0)
         flags |= (ROPD.RNP_KEY_REMOVE_SECRET if secret else 0)
+        flags |= (ROPD.RNP_KEY_REMOVE_SUBKEYS if subkeys else 0)
         _call_rop_func(self.__lib.rnp_key_remove, 0, self.__kid, flags)
+
+    def export_revocation(self, output, hash_, code, reason):
+        outp = (output.handle if output is not None else None)
+        _call_rop_func(self.__lib.rnp_key_export_revocation, 0, self.__kid, outp, 0, hash_, code, reason)
+
+    def revoke(self, hash_, code, reason):
+        _call_rop_func(self.__lib.rnp_key_revoke, 0, self.__kid, 0, hash_, code, reason)
+
 
 from .sign import RopSign

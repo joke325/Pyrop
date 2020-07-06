@@ -1,6 +1,6 @@
 '''I/O proxies
 '''
-__version__ = "0.1.1"
+__version__ = "0.3.0"
 
 # Copyright (c) 2020 Janky <box@janky.tech>
 # All right reserved.
@@ -40,7 +40,9 @@ class RopInput(object):
 
     def __init__(self, own, iid):
         self.__own = weakref(own)
-        self.__lib = own._lib
+        self.__lib = own.lib
+        if iid is None or iid.value is None:
+            raise RopError(ROP_ERROR_NULL_HANDLE)
         self.__iid = iid
         self._reader = None
         self._rcloser = None
@@ -51,7 +53,7 @@ class RopInput(object):
         return ret
 
     @property
-    def in_put(self): return self.__iid
+    def handle(self): return self.__iid
 
     # API
 
@@ -63,15 +65,15 @@ class RopInput(object):
 
     def dump_packets_to_output(self, output, mpi=False, raw=False, grip=False):
         flags = (ROPD.RNP_DUMP_MPI if mpi else 0)
-        flags = (ROPD.RNP_DUMP_RAW if raw else 0)
-        flags = (ROPD.RNP_DUMP_GRIP if grip else 0)
-        _call_rop_func(self.__lib.rnp_dump_packets_to_output, 0, self.__iid, output.out_put, flags)
+        flags |= (ROPD.RNP_DUMP_RAW if raw else 0)
+        flags |= (ROPD.RNP_DUMP_GRIP if grip else 0)
+        _call_rop_func(self.__lib.rnp_dump_packets_to_output, 0, self.__iid, output.handle, flags)
 
     def enarmor(self, output, type_):
-        _call_rop_func(self.__lib.rnp_enarmor, 0, self.__iid, output.out_put, type_)
+        _call_rop_func(self.__lib.rnp_enarmor, 0, self.__iid, output.handle, type_)
 
     def dearmor(self, output):
-        _call_rop_func(self.__lib.rnp_dearmor, 0, self.__iid, output.out_put)
+        _call_rop_func(self.__lib.rnp_dearmor, 0, self.__iid, output.handle)
 
     def guess_contents(self):
         return _get_str_prop(self.__lib, self.__lib.rnp_guess_contents, self.__iid)
@@ -83,7 +85,9 @@ class RopOutput(object):
 
     def __init__(self, own, oid):
         self.__own = weakref(own)
-        self.__lib = own._lib
+        self.__lib = own.lib
+        if oid is None or oid.value is None:
+            raise RopError(ROP_ERROR_NULL_HANDLE)
         self.__oid = oid
         self._writer = None
         self._wcloser = None
@@ -96,7 +100,7 @@ class RopOutput(object):
         return ret
 
     @property
-    def out_put(self): return self.__oid
+    def handle(self): return self.__oid
 
     # API
 

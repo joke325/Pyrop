@@ -1,6 +1,6 @@
 '''Ops proxies
 '''
-__version__ = "0.1.1"
+__version__ = "0.3.0"
 
 # Copyright (c) 2020 Janky <box@janky.tech>
 # All right reserved.
@@ -41,8 +41,13 @@ class RopSignSignature(object):
 
     def __init__(self, own, sgid):
         self.__own = weakref(own)
-        self.__lib = own._lib
+        self.__lib = own.lib
+        if sgid is None or sgid.value is None:
+            raise RopError(ROP_ERROR_NULL_HANDLE)
         self.__sgid = sgid
+
+    @property
+    def handle(self): return self.__sgid
 
     # API
 
@@ -64,13 +69,18 @@ class RopOpSign(object):
 
     def __init__(self, own, opid):
         self.__own = weakref(own)
-        self.__lib = own._lib
+        self.__lib = own.lib
+        if opid is None or opid.value is None:
+            raise RopError(ROP_ERROR_NULL_HANDLE)
         self.__opid = opid
 
     def _close(self):
         ret = self.__lib.rnp_op_sign_destroy(self.__opid)
         self.__opid = None
         return ret
+
+    @property
+    def handle(self): return self.__opid
 
     # API
 
@@ -106,7 +116,7 @@ class RopOpSign(object):
         _call_rop_func(self.__lib.rnp_op_sign_execute, 0, self.__opid)
 
     def add_signature(self, key):
-        hkey = (key.key if key is not None else None)
+        hkey = (key.handle if key is not None else None)
         sig = _call_rop_func(self.__lib.rnp_op_sign_add_signature, 1, self.__opid, hkey)
         return RopSignSignature(self.__own(), sig)
 
@@ -117,7 +127,9 @@ class RopOpGenerate(object):
 
     def __init__(self, own, opid):
         self.__own = weakref(own)
-        self.__lib = own._lib
+        self.__lib = own.lib
+        if opid is None or opid.value is None:
+            raise RopError(ROP_ERROR_NULL_HANDLE)
         self.__opid = opid
 
     def _close(self):
@@ -126,7 +138,7 @@ class RopOpGenerate(object):
         return ret
 
     @property
-    def opid(self): return self.__opid
+    def handle(self): return self.__opid
 
     # API
 
@@ -167,6 +179,11 @@ class RopOpGenerate(object):
     def clear_usage(self):
         _call_rop_func(self.__lib.rnp_op_generate_clear_usage, 0, self.__opid)
 
+    def set_usages(self, usages):
+        self.clear_usage()
+        for usage in usages:
+            self.add_usage(usage)
+
     def set_userid(self, userid):
         _call_rop_func(self.__lib.rnp_op_generate_set_userid, 0, self.__opid, userid)
 
@@ -180,17 +197,32 @@ class RopOpGenerate(object):
     def clear_pref_hashes(self):
         _call_rop_func(self.__lib.rnp_op_generate_clear_pref_hashes, 0, self.__opid)
 
+    def set_pref_hashes(self, hashes):
+        self.clear_pref_hashes()
+        for hash_ in hashes:
+            self.add_pref_hash(hash_)
+
     def add_pref_compression(self, compression):
         _call_rop_func(self.__lib.rnp_op_generate_add_pref_compression, 0, self.__opid, compression)
 
     def clear_pref_compression(self):
         _call_rop_func(self.__lib.rnp_op_generate_clear_pref_compression, 0, self.__opid)
 
+    def set_pref_compressions(self, compressions):
+        self.clear_pref_compression()
+        for compression in compressions:
+            self.add_pref_compression(compression)
+
     def add_pref_cipher(self, cipher):
         _call_rop_func(self.__lib.rnp_op_generate_add_pref_cipher, 0, self.__opid, cipher)
 
     def clear_pref_ciphers(self):
         _call_rop_func(self.__lib.rnp_op_generate_clear_pref_ciphers, 0, self.__opid)
+
+    def set_pref_ciphers(self, ciphers):
+        self.clear_pref_ciphers()
+        for cipher in ciphers:
+            self.add_pref_cipher(cipher)
 
     def set_pref_keyserver(self, keyserver):
         _call_rop_func(self.__lib.rnp_op_generate_set_pref_keyserver, 0, self.__opid, keyserver)
@@ -209,7 +241,9 @@ class RopOpEncrypt(object):
 
     def __init__(self, own, opid):
         self.__own = weakref(own)
-        self.__lib = own._lib
+        self.__lib = own.lib
+        if opid is None or opid.value is None:
+            raise RopError(ROP_ERROR_NULL_HANDLE)
         self.__opid = opid
 
     def _close(self):
@@ -218,16 +252,16 @@ class RopOpEncrypt(object):
         return ret
 
     @property
-    def opid(self): return self.__opid
+    def handle(self): return self.__opid
 
     # API
 
     def add_recipient(self, key):
-        hkey = (key.key if key is not None else None)
+        hkey = (key.handle if key is not None else None)
         _call_rop_func(self.__lib.rnp_op_encrypt_add_recipient, 0, self.__opid, hkey)
 
     def add_signature(self, key):
-        hkey = (key.key if key is not None else None)
+        hkey = (key.handle if key is not None else None)
         hop = _call_rop_func(self.__lib.rnp_op_encrypt_add_signature, 1, self.__opid, hkey)
         return RopSignSignature(self.__own(), hop)
 
@@ -279,11 +313,13 @@ class RopVeriSignature(object):
 
     def __init__(self, own, sgid):
         self.__own = weakref(own)
-        self.__lib = own._lib
+        self.__lib = own.lib
+        if sgid is None or sgid.value is None:
+            raise RopError(ROP_ERROR_NULL_HANDLE)
         self.__sgid = sgid
 
     @property
-    def sgid(self): return self.__sgid
+    def handle(self): return self.__sgid
 
     # API
 
@@ -308,13 +344,78 @@ class RopVeriSignature(object):
         return _ts2datetime(tm1), _ts2datetime(tm2)
 
 
+class RopRecipient(object):
+    '''OP Recipient
+    '''
+
+    def __init__(self, own, rid):
+        self.__own = weakref(own)
+        self.__lib = own.lib
+        if rid is None or rid.value is None:
+            raise RopError(ROP_ERROR_NULL_HANDLE)
+        self.__rid = rid
+
+    @property
+    def handle(self): return self.__rid
+
+    # API
+
+    @property
+    def keyid(self):
+        kid = _call_rop_func(self.__lib.rnp_recipient_get_keyid, 1, self.__rid)
+        return _get_rop_string(self.__lib, ROPE.RNP_SUCCESS, kid)
+    @property
+    def alg(self):
+        alg = _call_rop_func(self.__lib.rnp_recipient_get_alg, 1, self.__rid)
+        return _get_rop_string(self.__lib, ROPE.RNP_SUCCESS, alg)
+
+
+class RopSymEnc(object):
+    '''OP Symenc
+    '''
+
+    def __init__(self, own, seid):
+        self.__own = weakref(own)
+        self.__lib = own.lib
+        if seid is None or seid.value is None:
+            raise RopError(ROP_ERROR_NULL_HANDLE)
+        self.__seid = seid
+
+    @property
+    def handle(self): return self.__seid
+
+    # API
+
+    @property
+    def cipher(self):
+        cip = _call_rop_func(self.__lib.rnp_symenc_get_cipher, 1, self.__seid)
+        return _get_rop_string(self.__lib, ROPE.RNP_SUCCESS, cip)
+    @property
+    def aead_alg(self):
+        alg = _call_rop_func(self.__lib.rnp_symenc_get_aead_alg, 1, self.__seid)
+        return _get_rop_string(self.__lib, ROPE.RNP_SUCCESS, alg)
+    @property
+    def hash_alg(self):
+        alg = _call_rop_func(self.__lib.rnp_symenc_get_hash_alg, 1, self.__seid)
+        return _get_rop_string(self.__lib, ROPE.RNP_SUCCESS, alg)
+    @property
+    def s2k_type(self):
+        s2k = _call_rop_func(self.__lib.rnp_symenc_get_s2k_type, 1, self.__seid)
+        return _get_rop_string(self.__lib, ROPE.RNP_SUCCESS, s2k)
+    @property
+    def s2k_iterations(self):
+        return _call_rop_func(self.__lib.rnp_symenc_get_s2k_iterations, 1, self.__seid)
+
+
 class RopOpVerify(object):
     '''OP Verify proxy
     '''
 
     def __init__(self, own, opid):
         self.__own = weakref(own)
-        self.__lib = own._lib
+        self.__lib = own.lib
+        if opid is None or opid.value is None:
+            raise RopError(ROP_ERROR_NULL_HANDLE)
         self.__opid = opid
 
     def _close(self):
@@ -323,7 +424,7 @@ class RopOpVerify(object):
         return ret
 
     @property
-    def opid(self): return self.__opid
+    def handle(self): return self.__opid
 
     # API
 
@@ -340,4 +441,34 @@ class RopOpVerify(object):
 
     def get_file_info(self):
         filename, mtime = _call_rop_func(self.__lib.rnp_op_verify_get_file_info, 2, self.__opid)
-        return _get_rop_string(self.__lib, ROPE.RNP_SUCCESS, filename), mtime
+        return _get_rop_string(self.__lib, ROPE.RNP_SUCCESS, filename), _ts2datetime(mtime)
+
+    def get_protection_info(self):
+        # F() -> (mode: str, cipher: str, valid: bool)
+        mode, cipher, valid = _call_rop_func(self.__lib.rnp_op_verify_get_protection_info, 3, self.__opid)
+        cipher = _get_rop_string(self.__lib, ROPE.RNP_SUCCESS, cipher)
+        return _get_rop_string(self.__lib, ROPE.RNP_SUCCESS, mode), cipher, valid
+
+    @property
+    def recipient_count(self):
+        return _call_rop_func(self.__lib.rnp_op_verify_get_recipient_count, 1, self.__opid)
+    @property
+    def used_recipient(self):
+        rcp = _call_rop_func(self.__lib.rnp_op_verify_get_used_recipient, 1, self.__opid)
+        return RopRecipient(self.__own(), rcp) if rcp.value is not None else None
+
+    def get_recipient_at(self, idx):
+        rcp = _call_rop_func(self.__lib.rnp_op_verify_get_recipient_at, 1, self.__opid, idx)
+        return RopRecipient(self.__own(), rcp) if rcp.value is not None else None
+
+    @property
+    def symenc_count(self):
+        return _call_rop_func(self.__lib.rnp_op_verify_get_symenc_count, 1, self.__opid)
+    @property
+    def used_symenc(self):
+        senc = _call_rop_func(self.__lib.rnp_op_verify_get_used_symenc, 1, self.__opid)
+        return RopSymEnc(self.__own(), senc) if senc.value is not None else None
+
+    def get_symenc_at(self, idx):
+        senc = _call_rop_func(self.__lib.rnp_op_verify_get_symenc_at, 1, self.__opid, idx)
+        return RopSymEnc(self.__own(), senc) if senc.value is not None else None
