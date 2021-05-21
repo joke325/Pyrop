@@ -1,6 +1,6 @@
 '''Sign proxy
 '''
-__version__ = "0.3.0"
+__version__ = "0.14.0"
 
 # Copyright (c) 2020 Janky <box@janky.tech>
 # All right reserved.
@@ -30,6 +30,7 @@ __version__ = "0.3.0"
 from weakref import ref as weakref
 from .rop.lib import ROPD
 from .rop.err import ROPE
+from .error import RopError
 from .util import _call_rop_func, _new_rop_obj, _get_rop_string, _ts2datetime
 from .key import RopKey
 
@@ -42,7 +43,7 @@ class RopSign(object):
         self.__own = weakref(own)
         self.__lib = own.lib
         if sgid is None or sgid.value is None:
-            raise RopError(ROP_ERROR_NULL_HANDLE)
+            raise RopError(self.__own().ROP_ERROR_NULL_HANDLE)
         self.__sgid = sgid
 
     def _close(self):
@@ -54,6 +55,10 @@ class RopSign(object):
     def handle(self): return self.__sgid
 
     # API
+
+    def get_type(self):
+        type_ = _call_rop_func(self.__lib.rnp_signature_get_type, 1, self.__sgid)
+        return _get_rop_string(self.__lib, ROPE.RNP_SUCCESS, type_)
 
     @property
     def alg(self):
@@ -71,6 +76,9 @@ class RopSign(object):
     def keyid(self):
         kid = _call_rop_func(self.__lib.rnp_signature_get_keyid, 1, self.__sgid)
         return _get_rop_string(self.__lib, ROPE.RNP_SUCCESS, kid)
+    
+    def is_valid(self):
+        _call_rop_func(self.__lib.rnp_signature_is_valid, 0, self.__sgid, 0)
 
     def get_signer(self, tag=0):
         signer = _call_rop_func(self.__lib.rnp_signature_get_signer, 1, self.__sgid)

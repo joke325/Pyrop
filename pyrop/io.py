@@ -1,6 +1,6 @@
 '''I/O proxies
 '''
-__version__ = "0.3.0"
+__version__ = "0.14.0"
 
 # Copyright (c) 2020 Janky <box@janky.tech>
 # All right reserved.
@@ -42,7 +42,7 @@ class RopInput(object):
         self.__own = weakref(own)
         self.__lib = own.lib
         if iid is None or iid.value is None:
-            raise RopError(ROP_ERROR_NULL_HANDLE)
+            raise RopError(self.__own().ROP_ERROR_NULL_HANDLE)
         self.__iid = iid
         self._reader = None
         self._rcloser = None
@@ -78,6 +78,9 @@ class RopInput(object):
     def guess_contents(self):
         return _get_str_prop(self.__lib, self.__lib.rnp_guess_contents, self.__iid)
 
+    def output_pipe(self, output):
+        _call_rop_func(self.__lib.rnp_output_pipe, 0, self.__iid, output.handle)
+
 
 class RopOutput(object):
     '''Output ops proxy
@@ -87,7 +90,7 @@ class RopOutput(object):
         self.__own = weakref(own)
         self.__lib = own.lib
         if oid is None or oid.value is None:
-            raise RopError(ROP_ERROR_NULL_HANDLE)
+            raise RopError(self.__own().ROP_ERROR_NULL_HANDLE)
         self.__oid = oid
         self._writer = None
         self._wcloser = None
@@ -121,3 +124,6 @@ class RopOutput(object):
 
     def write(self, data, size):
         return _call_rop_func(self.__lib.rnp_output_write, 1, self.__oid, data, size)
+
+    def armor_set_line_length(self, len_):
+        _call_rop_func(self.__lib.rnp_output_armor_set_line_length, 0, self.__oid, len_)

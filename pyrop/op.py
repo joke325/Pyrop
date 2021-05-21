@@ -29,6 +29,7 @@ __version__ = "0.3.0"
 
 from weakref import ref as weakref
 from .rop.err import ROPE
+from .error import RopError
 from .util import _call_rop_func, _new_rop_obj, _get_rop_string, _timedelta2sec, \
     _ts2datetime, _datetime2ts
 from .key import RopKey
@@ -43,7 +44,7 @@ class RopSignSignature(object):
         self.__own = weakref(own)
         self.__lib = own.lib
         if sgid is None or sgid.value is None:
-            raise RopError(ROP_ERROR_NULL_HANDLE)
+            raise RopError(self.__own().ROP_ERROR_NULL_HANDLE)
         self.__sgid = sgid
 
     @property
@@ -71,7 +72,7 @@ class RopOpSign(object):
         self.__own = weakref(own)
         self.__lib = own.lib
         if opid is None or opid.value is None:
-            raise RopError(ROP_ERROR_NULL_HANDLE)
+            raise RopError(self.__own().ROP_ERROR_NULL_HANDLE)
         self.__opid = opid
 
     def _close(self):
@@ -129,7 +130,7 @@ class RopOpGenerate(object):
         self.__own = weakref(own)
         self.__lib = own.lib
         if opid is None or opid.value is None:
-            raise RopError(ROP_ERROR_NULL_HANDLE)
+            raise RopError(self.__own().ROP_ERROR_NULL_HANDLE)
         self.__opid = opid
 
     def _close(self):
@@ -243,7 +244,7 @@ class RopOpEncrypt(object):
         self.__own = weakref(own)
         self.__lib = own.lib
         if opid is None or opid.value is None:
-            raise RopError(ROP_ERROR_NULL_HANDLE)
+            raise RopError(self.__own().ROP_ERROR_NULL_HANDLE)
         self.__opid = opid
 
     def _close(self):
@@ -315,7 +316,7 @@ class RopVeriSignature(object):
         self.__own = weakref(own)
         self.__lib = own.lib
         if sgid is None or sgid.value is None:
-            raise RopError(ROP_ERROR_NULL_HANDLE)
+            raise RopError(self.__own().ROP_ERROR_NULL_HANDLE)
         self.__sgid = sgid
 
     @property
@@ -352,7 +353,7 @@ class RopRecipient(object):
         self.__own = weakref(own)
         self.__lib = own.lib
         if rid is None or rid.value is None:
-            raise RopError(ROP_ERROR_NULL_HANDLE)
+            raise RopError(self.__own().ROP_ERROR_NULL_HANDLE)
         self.__rid = rid
 
     @property
@@ -378,7 +379,7 @@ class RopSymEnc(object):
         self.__own = weakref(own)
         self.__lib = own.lib
         if seid is None or seid.value is None:
-            raise RopError(ROP_ERROR_NULL_HANDLE)
+            raise RopError(self.__own().ROP_ERROR_NULL_HANDLE)
         self.__seid = seid
 
     @property
@@ -415,7 +416,7 @@ class RopOpVerify(object):
         self.__own = weakref(own)
         self.__lib = own.lib
         if opid is None or opid.value is None:
-            raise RopError(ROP_ERROR_NULL_HANDLE)
+            raise RopError(self.__own().ROP_ERROR_NULL_HANDLE)
         self.__opid = opid
 
     def _close(self):

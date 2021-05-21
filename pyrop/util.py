@@ -80,7 +80,7 @@ def _new_rop_obj(wref, ret, rop_obj, obj_fact, tag):
     Proxies allocator helper
     '''
     obj = None
-    if ret == ROPE.RNP_SUCCESS and rop_obj.value is not None:
+    if ret == ROPE.RNP_SUCCESS:
         obj = obj_fact(wref, rop_obj)
         wref._put_obj(obj, tag)
     if ret != ROPE.RNP_SUCCESS:

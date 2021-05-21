@@ -26,4 +26,4 @@ python tests/extest.py
 
 ## Examples
 
-There are Python alternatives of [RNP's examples](https://github.com/rnpgp/rnp/src/examples) under the [examples](examples) folder.
+There are Python alternatives of [RNP's examples](https://github.com/rnpgp/rnp/tree/master/src/examples) under the [examples](examples) folder.

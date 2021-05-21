@@ -2,7 +2,7 @@
 
 '''Library wrapper
 '''
-__version__ = "0.3.0"
+__version__ = "0.14.0"
 
 # Copyright (c) 2020 Janky <box@janky.tech>
 # All right reserved.
@@ -30,9 +30,9 @@ __version__ = "0.3.0"
 # THE POSSIBILITY OF SUCH DAMAGE.
 
 from ctypes import cdll, cast, create_string_buffer, set_conversion_mode
-from ctypes import addressof, memmove, CFUNCTYPE, POINTER
+from ctypes import addressof, sizeof, memmove, CFUNCTYPE, POINTER, byref
 from ctypes import c_char, c_ubyte, c_int, c_uint, c_size_t, c_ulonglong
-from ctypes import c_bool, c_char_p, c_void_p
+from ctypes import c_bool, c_char_p, c_void_p, py_object
 from ctypes.util import find_library
 
 class RopLib(object):
@@ -43,11 +43,11 @@ class RopLib(object):
     string8_format = 'utf-8'    # Input/output strings encoding
 
     # Callback types
-    Rop_get_key_cb = CFUNCTYPE(c_int, c_void_p, c_void_p, c_char_p, \
+    Rop_get_key_cb = CFUNCTYPE(c_int, c_void_p, py_object, c_char_p, \
         c_char_p, c_bool)
-    Rop_password_cb = CFUNCTYPE(c_bool, c_void_p, c_void_p, c_void_p, \
+    Rop_password_cb = CFUNCTYPE(c_bool, c_void_p, py_object, c_void_p, \
         c_char_p, POINTER(c_char), c_size_t)
-    Rop_input_reader_t = CFUNCTYPE(c_bool, c_void_p, c_void_p, c_size_t, POINTER(c_size_t))
+    Rop_input_reader_t = CFUNCTYPE(c_bool, py_object, c_void_p, c_size_t, POINTER(c_size_t))
     Rop_input_closer_t = CFUNCTYPE(c_int, c_void_p)
     Rop_output_writer_t = CFUNCTYPE(c_bool, c_void_p, c_void_p, c_size_t)
     Rop_output_closer_t = CFUNCTYPE(c_int, c_void_p, c_bool)
@@ -60,6 +60,7 @@ class RopLib(object):
             raise Exception('Failed to load {}'.format(self.__lib_name))
         self.__ffi_funcs = {}
         set_conversion_mode(self.string8_format, 'strict')
+        self.__retains = [{}, {}]
 
     def rnp_result_to_string(self, result):
         '''F(result: int) -> str
@@ -145,6 +146,7 @@ class RopLib(object):
         '''F(ffi: cd) -> int
         '''
         rop_fx = self.__ffilib_function('rnp_ffi_destroy', lambda: CFUNCTYPE(c_uint, c_void_p))
+        self.__retains[0].pop(id(ffi), None)
         return rop_fx(ffi)
 
     def rnp_ffi_set_log_fd(self, ffi, fd_):
@@ -158,14 +160,15 @@ class RopLib(object):
         '''F(ffi: cd, getkeycb: Rop_get_key_cb, getkeycb_ctx: obj) -> int
         '''
         rop_fx = self.__ffilib_function('rnp_ffi_set_key_provider', lambda: \
-            CFUNCTYPE(c_uint, c_void_p, self.Rop_get_key_cb, c_void_p))
+            CFUNCTYPE(c_uint, c_void_p, self.Rop_get_key_cb, py_object))
         return rop_fx(ffi, getkeycb, getkeycb_ctx)
 
     def rnp_ffi_set_pass_provider(self, ffi, getpasscb, getpasscb_ctx):
         '''F(ffi: cd, getpasscb: Rop_password_cb, getpasscb_ctx: obj) -> int
         '''
         rop_fx = self.__ffilib_function('rnp_ffi_set_pass_provider', lambda: \
-            CFUNCTYPE(c_uint, c_void_p, self.Rop_password_cb, c_void_p))
+            CFUNCTYPE(c_uint, c_void_p, self.Rop_password_cb, py_object))
+        self.__retains[0][id(ffi)] = getpasscb_ctx
         return rop_fx(ffi, getpasscb, getpasscb_ctx)
 
     def rnp_get_default_homedir(self, homedir):
@@ -371,7 +374,8 @@ class RopLib(object):
         refs = self.__refs_init(rparams)
         rop_fx = self.__ffilib_function('rnp_generate_key_ec', lambda: \
             CFUNCTYPE(c_uint, c_void_p, c_char_p, c_char_p, c_char_p, POINTER(c_void_p)))
-        ret = rop_fx(ffi, curve, userid, password, refs[0])
+        ret = rop_fx(ffi, curve, userid, \
+            password, refs[0])
         self.__refs_final(refs, rparams, ref_get=None)
         return ret
 
@@ -407,8 +411,9 @@ class RopLib(object):
         rop_fx = self.__ffilib_function('rnp_generate_key_ex', lambda: \
             CFUNCTYPE(c_uint, c_void_p, c_char_p, c_char_p, c_uint, c_uint, \
                 c_char_p, c_char_p, c_char_p, c_char_p, POINTER(c_void_p)))
-        ret = rop_fx(ffi, key_alg, sub_alg, key_bits, sub_bits, key_curve, \
-            sub_curve, userid, password, refs[0])
+        ret = rop_fx(ffi, key_alg, sub_alg, key_bits, sub_bits, \
+            key_curve, sub_curve, userid, \
+                password, refs[0])
         self.__refs_final(refs, rparams, ref_get=None)
         return ret
 
@@ -613,6 +618,13 @@ class RopLib(object):
             CFUNCTYPE(c_uint, c_void_p, c_void_p, c_uint))
         return rop_fx(key, output, flags)
 
+    def rnp_key_export_autocrypt(self, key, subkey, uid, output, flags):
+        '''F(key: cd, subkey: cd, uid: str, output: cd, flags: int) -> int
+        '''
+        rop_fx = self.__ffilib_function('rnp_key_export_autocrypt', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, c_void_p, c_char_p, c_void_p, c_uint))
+        return rop_fx(key, subkey, uid, output, flags)
+
     def rnp_key_export_revocation(self, key, output, flags, hash_, code, reason):
         '''F(key: cd, output: cd, flags: int, hash: str, code: str, reason: str) -> int
         '''
@@ -703,6 +715,51 @@ class RopLib(object):
         self.__refs_final(refs, rparams, ref_get=None)
         return ret
 
+    def rnp_uid_get_type(self, uid, type_):
+        '''F(uid: cd, type: [int]) -> int
+        '''
+        rparams = ((type_, c_uint(0)),)
+        refs = self.__refs_init(rparams)
+        rop_fx = self.__ffilib_function('rnp_uid_get_type', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, POINTER(c_uint)))
+        ret = rop_fx(uid, refs[0])
+        self.__refs_final(refs, rparams)
+        return ret
+
+    def rnp_uid_get_data(self, uid, data, size_):
+        '''F(uid: cd, data: [cd], size: [int]) -> int
+        '''
+        rparams = ((data, c_void_p(None)), (size_, c_size_t(0)))
+        refs = self.__refs_init(rparams)
+        rop_fx = self.__ffilib_function('rnp_uid_get_data', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, POINTER(c_void_p), POINTER(c_size_t)))
+        ret = rop_fx(uid, refs[0], refs[1])
+        refs[1] = refs[1].value
+        self.__refs_final(refs, rparams, ref_get=None)
+        return ret
+
+    def rnp_uid_is_primary(self, uid, primary):
+        '''F(uid: cd, primary: [int]) -> int
+        '''
+        rparams = ((primary, c_bool(0)),)
+        refs = self.__refs_init(rparams)
+        rop_fx = self.__ffilib_function('rnp_uid_is_primary', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, POINTER(c_bool)))
+        ret = rop_fx(uid, refs[0])
+        self.__refs_final(refs, rparams)
+        return ret
+
+    def rnp_uid_is_valid(self, uid, valid):
+        '''F(uid: cd, valid: [int]) -> int
+        '''
+        rparams = ((valid, c_bool(0)),)
+        refs = self.__refs_init(rparams)
+        rop_fx = self.__ffilib_function('rnp_uid_is_valid', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, POINTER(c_bool)))
+        ret = rop_fx(uid, refs[0])
+        self.__refs_final(refs, rparams)
+        return ret
+
     def rnp_key_get_signature_count(self, key, count):
         '''F(key: cd, count: [int]) -> int
         '''
@@ -725,6 +782,17 @@ class RopLib(object):
         self.__refs_final(refs, rparams, ref_get=None)
         return ret
 
+    def rnp_key_get_revocation_signature(self, key, sig):
+        '''F(key: cd, sig: [cd]) -> int
+        '''
+        rparams = ((sig, c_void_p(None)),)
+        refs = self.__refs_init(rparams)
+        rop_fx = self.__ffilib_function('rnp_key_get_revocation_signature', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, POINTER(c_void_p)))
+        ret = rop_fx(key, refs[0])
+        self.__refs_final(refs, rparams, ref_get=None)
+        return ret
+
     def rnp_uid_get_signature_count(self, uid, count):
         '''F(uid: cd, count: [int]) -> int
         '''
@@ -744,6 +812,17 @@ class RopLib(object):
         rop_fx = self.__ffilib_function('rnp_uid_get_signature_at', lambda: \
             CFUNCTYPE(c_uint, c_void_p, c_size_t, POINTER(c_void_p)))
         ret = rop_fx(uid, idx, refs[0])
+        self.__refs_final(refs, rparams, ref_get=None)
+        return ret
+
+    def rnp_signature_get_type(self, sig, type_):
+        '''F(uid: cd, sig: [cd]) -> int
+        '''
+        rparams = ((type_, c_void_p(None)),)
+        refs = self.__refs_init(rparams)
+        rop_fx = self.__ffilib_function('rnp_signature_get_type', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, POINTER(c_void_p)))
+        ret = rop_fx(sig, refs[0])
         self.__refs_final(refs, rparams, ref_get=None)
         return ret
 
@@ -802,6 +881,14 @@ class RopLib(object):
         self.__refs_final(refs, rparams, ref_get=None)
         return ret
 
+
+    def rnp_signature_is_valid(self, sig, flags):
+        '''F(sig: cd, flags: int) -> int
+        '''
+        rop_fx = self.__ffilib_function('rnp_signature_is_valid', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, c_uint))
+        return rop_fx(sig, flags)
+
     def rnp_signature_packet_to_json(self, sig, flags, json):
         '''F(sig: cd, flags: int, json: [cd]) -> int
         '''
@@ -829,6 +916,17 @@ class RopLib(object):
             CFUNCTYPE(c_uint, c_void_p, POINTER(c_bool)))
         ret = rop_fx(uid, refs[0])
         self.__refs_final(refs, rparams)
+        return ret
+
+    def rnp_uid_get_revocation_signature(self, uid, sig):
+        '''F(uid: cd, sig: [cd]) -> int
+        '''
+        rparams = ((sig, c_void_p(None)),)
+        refs = self.__refs_init(rparams)
+        rop_fx = self.__ffilib_function('rnp_uid_get_revocation_signature', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, POINTER(c_void_p)))
+        ret = rop_fx(uid, refs[0])
+        self.__refs_final(refs, rparams, ref_get=None)
         return ret
 
     def rnp_uid_handle_destroy(self, uid):
@@ -956,6 +1054,17 @@ class RopLib(object):
         self.__refs_final(refs, rparams, ref_get=None)
         return ret
 
+    def rnp_key_get_primary_fprint(self, key, fprint):
+        '''F(key: cd, fprint: [cd]) -> int
+        '''
+        rparams = ((fprint, c_void_p(None)),)
+        refs = self.__refs_init(rparams)
+        rop_fx = self.__ffilib_function('rnp_key_get_primary_fprint', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, POINTER(c_void_p)))
+        ret = rop_fx(key, refs[0])
+        self.__refs_final(refs, rparams, ref_get=None)
+        return ret
+
     def rnp_key_allows_usage(self, key, usage, result):
         '''F(key: cd, usage: str, result: [bool]) -> int
         '''
@@ -988,13 +1097,35 @@ class RopLib(object):
         ret = rop_fx(key, refs[0])
         self.__refs_final(refs, rparams)
         return ret
-
+    
     def rnp_key_set_expiration(self, key, expiry):
         '''F(key: cd, expiry: int) -> int
         '''
         rop_fx = self.__ffilib_function('rnp_key_set_expiration', lambda: \
             CFUNCTYPE(c_uint, c_void_p, c_uint))
         return rop_fx(key, expiry)
+
+    def rnp_key_is_valid(self, key, result):
+        '''F(key: cd, result: [bool]) -> int
+        '''
+        rparams = ((result, c_bool(0)),)
+        refs = self.__refs_init(rparams)
+        rop_fx = self.__ffilib_function('rnp_key_is_valid', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, POINTER(c_bool)))
+        ret = rop_fx(key, refs[0])
+        self.__refs_final(refs, rparams)
+        return ret
+
+    def rnp_key_valid_till(self, key, result):
+        '''F(key: cd, result: [int]) -> int
+        '''
+        rparams = ((result, c_uint(0)),)
+        refs = self.__refs_init(rparams)
+        rop_fx = self.__ffilib_function('rnp_key_valid_till', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, POINTER(c_uint)))
+        ret = rop_fx(key, refs[0])
+        self.__refs_final(refs, rparams)
+        return ret
 
     def rnp_key_is_revoked(self, key, result):
         '''F(key: cd, result: [bool]) -> int
@@ -1062,6 +1193,61 @@ class RopLib(object):
         self.__refs_final(refs, rparams)
         return ret
 
+    def rnp_key_get_protection_type(self, key, type_):
+        '''F(key: cd, type: [str]) -> int
+        '''
+        rparams = ((type_, c_void_p(None)),)
+        refs = self.__refs_init(rparams)
+        rop_fx = self.__ffilib_function('rnp_key_get_protection_type', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, POINTER(c_void_p)))
+        ret = rop_fx(key, refs[0])
+        self.__refs_final(refs, rparams, ref_get=None)
+        return ret
+
+    def rnp_key_get_protection_mode(self, key, mode):
+        '''F(key: cd, type: [str]) -> int
+        '''
+        rparams = ((mode, c_void_p(None)),)
+        refs = self.__refs_init(rparams)
+        rop_fx = self.__ffilib_function('rnp_key_get_protection_mode', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, POINTER(c_void_p)))
+        ret = rop_fx(key, refs[0])
+        self.__refs_final(refs, rparams, ref_get=None)
+        return ret
+
+    def rnp_key_get_protection_cipher(self, key, cipher):
+        '''F(key: cd, type: [str]) -> int
+        '''
+        rparams = ((cipher, c_void_p(None)),)
+        refs = self.__refs_init(rparams)
+        rop_fx = self.__ffilib_function('rnp_key_get_protection_cipher', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, POINTER(c_void_p)))
+        ret = rop_fx(key, refs[0])
+        self.__refs_final(refs, rparams, ref_get=None)
+        return ret
+
+    def rnp_key_get_protection_hash(self, key, hash_):
+        '''F(key: cd, type: [str]) -> int
+        '''
+        rparams = ((hash_, c_void_p(None)),)
+        refs = self.__refs_init(rparams)
+        rop_fx = self.__ffilib_function('rnp_key_get_protection_hash', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, POINTER(c_void_p)))
+        ret = rop_fx(key, refs[0])
+        self.__refs_final(refs, rparams, ref_get=None)
+        return ret
+
+    def rnp_key_get_protection_iterations(self, key, iterations):
+        '''F(key: cd, type: [int]) -> int
+        '''
+        rparams = ((iterations, c_size_t(0)),)
+        refs = self.__refs_init(rparams)
+        rop_fx = self.__ffilib_function('rnp_key_get_protection_iterations', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, POINTER(c_size_t)))
+        ret = rop_fx(key, refs[0])
+        self.__refs_final(refs, rparams)
+        return ret
+
     def rnp_key_lock(self, key):
         '''F(key: cd) -> int
         '''
@@ -1093,7 +1279,8 @@ class RopLib(object):
         '''
         rop_fx = self.__ffilib_function('rnp_key_protect', lambda: \
             CFUNCTYPE(c_uint, c_void_p, c_char_p, c_char_p, c_char_p, c_char_p, c_size_t))
-        return rop_fx(handle, password, cipher, cipher_mode, hash_, iterations)
+        return rop_fx(handle, password, cipher, \
+            cipher_mode, hash_, iterations)
 
     def rnp_key_unprotect(self, key, password):
         '''F(key: cd, password: str) -> int
@@ -1612,6 +1799,8 @@ class RopLib(object):
         rop_fx = self.__ffilib_function('rnp_input_from_memory', lambda: \
             CFUNCTYPE(c_uint, POINTER(c_void_p), c_void_p, c_size_t, c_bool))
         ret = rop_fx(refs[0], buf, buf_len, do_copy)
+        if refs[0] is not None:
+            self.__retains[1][id(refs[0])] = buf
         self.__refs_final(refs, rparams, ref_get=None)
         return ret
 
@@ -1623,7 +1812,7 @@ class RopLib(object):
         refs = self.__refs_init(rparams)
         rop_fx = self.__ffilib_function('rnp_input_from_callback', lambda: \
             CFUNCTYPE(c_uint, POINTER(c_void_p), self.Rop_input_reader_t, \
-                self.Rop_input_closer_t, c_void_p))
+                self.Rop_input_closer_t, py_object))
         ret = rop_fx(refs[0], reader, closer, app_ctx)
         self.__refs_final(refs, rparams, ref_get=None)
         return ret
@@ -1633,6 +1822,7 @@ class RopLib(object):
         '''
         rop_fx = self.__ffilib_function('rnp_input_destroy', lambda: \
             CFUNCTYPE(c_uint, c_void_p))
+        self.__retains[1].pop(id(input_), None)
         return rop_fx(input_)
 
     def rnp_output_to_path(self, output, path):
@@ -1796,7 +1986,8 @@ class RopLib(object):
         '''
         rop_fx = self.__ffilib_function('rnp_op_encrypt_add_password', lambda: \
             CFUNCTYPE(c_uint, c_void_p, c_char_p, c_char_p, c_size_t, c_char_p))
-        return rop_fx(op_, password, s2k_hash, iterations, s2k_cipher)
+        return rop_fx(op_, password, s2k_hash, iterations, \
+            s2k_cipher)
 
     def rnp_op_encrypt_set_armor(self, op_, armored):
         '''F(op_: cd, armored: bool) -> int
@@ -1932,6 +2123,19 @@ class RopLib(object):
             CFUNCTYPE(c_uint, c_void_p))
         return rop_fx(it_)
 
+    def rnp_output_pipe(self, input_, output):
+        '''F(input: cd, output: [cd]) -> int
+        '''
+        rop_fx = self.__ffilib_function('rnp_output_pipe', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, c_void_p))
+        return rop_fx(input_, output)
+
+    def rnp_output_armor_set_line_length(self, output, len_):
+        '''F(output: cd, llen: int) -> int
+        '''
+        rop_fx = self.__ffilib_function('rnp_output_armor_set_line_length', lambda: \
+            CFUNCTYPE(c_uint, c_void_p, c_size_t))
+        return rop_fx(output, len_)
 
     def __ffilib_function(self, fx_name, fx_type):
         ffi_fx = self.__ffi_funcs.get(fx_name)
@@ -1954,6 +2158,9 @@ class RopLib(object):
         if path is None:
             path = 'lib{}.so'.format(lib_name)
         return path
+
+    @property
+    def retains(self): return self.__retains
 
     @staticmethod
     def __refs_init(vars_):
@@ -2029,12 +2236,20 @@ class RopLibDef(object):
     def RNP_LOAD_SAVE_SECRET_KEYS(self): return (1 << 1)
     @property
     def RNP_LOAD_SAVE_PERMISSIVE(self): return (1 << 8)
+    @property
+    def RNP_LOAD_SAVE_SINGLE(self): return (1 << 9)
 
     # Flags for output structure creation.
     @property
     def RNP_OUTPUT_FILE_OVERWRITE(self): return (1 << 0)
     @property
     def RNP_OUTPUT_FILE_RANDOM(self): return (1 << 1)
+
+    # User id type
+    @property
+    def RNP_USER_ID(self): return 1
+    @property
+    def RNP_USER_ATTR(self): return 2
 
     # Algorithm Strings
     @property
@@ -2143,7 +2358,8 @@ class PyRopUtils(object):
     # to bool(?, string, ?, string, int)
     def reshape_password_cb(function):
         def cb_wrap(ffi, app_ctx, key, pgp_context, buf, buf_len):
-            ret, ret_buf = function(ffi, c_char_p(app_ctx).value if app_ctx is not None else None, key, pgp_context, buf_len)
+            ret, ret_buf = function(ffi, app_ctx, key, pgp_context \
+                    if pgp_context is not None else None, buf_len)
             if ret_buf is not None:
                 PyRopUtils.write_string8(buf, buf_len, ret_buf)
             return ret
@@ -2153,10 +2369,10 @@ class PyRopUtils(object):
     # to bool(?, list, int, int*)
     def reshape_reader_cb(function):
         def cb_wrap(app_ctx, buf, buf_len, read_):
-            ret_buf = function(app_ctx.value if app_ctx is not None else None, buf_len)
+            ret_buf = function(app_ctx, buf_len)
             if ret_buf is not None:
                 PyRopUtils.write_memory(buf, buf_len, ret_buf)
-                read_.contents = c_size_t(len(ret_buf) if ret_buf is not None else 0)
+                memmove(read_, byref(c_size_t(len(ret_buf) if ret_buf is not None else 0)), sizeof(c_size_t))
                 return True
             return False
         return cb_wrap

@@ -1,6 +1,6 @@
 '''Wrapped library error codes
 '''
-__version__ = "0.1.1"
+__version__ = "0.14.0"
 
 # Copyright (c) 2020 Janky <box@janky.tech>
 # All right reserved.
@@ -93,6 +93,8 @@ class RopErr(object):
 
     @property
     def RNP_ERROR_SIGNATURE_EXPIRED(self): return self.__rnp_error_bad_state+11
+    @property
+    def RNP_ERROR_VERIFICATION_FAILED(self): return self.__rnp_error_bad_state+12
 
     # Parsing
     @property
